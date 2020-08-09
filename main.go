@@ -9,24 +9,25 @@ import (
 	"log"
 	"os"
 	"path"
+	"strings"
 	"sync"
 	"time"
 )
 
 type arguments struct {
-	dirPath      string
-	readers      int
+	dirPaths     []string
 	filesToWrite int
 	fileSize     int
 }
 
 func getArgs() arguments {
 	args := arguments{}
-	flag.IntVar(&args.readers, "readers", 1, "amount of reader threads")
 	flag.IntVar(&args.filesToWrite, "files", 0, "amount of files to write")
 	flag.IntVar(&args.fileSize, "size", 10, "file size in MB (to write)")
-	flag.StringVar(&args.dirPath, "dir", ".", "directory path to read")
+	dirs := flag.String("dir", ".", "comma ',' sepparated directories path to write and read")
 	flag.Parse()
+
+	args.dirPaths = strings.Split(*dirs, ",")
 
 	return args
 }
@@ -117,22 +118,23 @@ func (b *Benchmark) generateFiles(dirPath string, filesToWrite, fileSizeMB int) 
 
 func (b *Benchmark) run(wg *sync.WaitGroup) {
 	defer wg.Done()
+	os.MkdirAll(b.dirPath, os.ModePerm)
 	b.generateFiles(b.dirPath, b.filesToWrite, b.fileSizeMB)
 	b.iterrateDir(b.dirPath)
 }
 
 func (b Benchmark) printReadResults() {
 	dataInMB := float64(b.dataInBytes) / (1024 * 1024)
-	log.Printf("Read: %6.3f MB in %6.3f seconds\n", dataInMB, b.readDuration)
+	log.Printf("%s - Read: %6.3f MB in %6.3f seconds\n", b.dirPath, dataInMB, b.readDuration)
 	readSpeed := dataInMB / b.readDuration
-	log.Printf("Read Speed is: %6.3f MB/s\n", readSpeed)
+	log.Printf("%s - Read Speed is: %6.3f MB/s\n", b.dirPath, readSpeed)
 }
 
 func (b Benchmark) printWriteResults() {
 	wroteMB := float64(b.fileSizeMB * b.filesWritten)
-	log.Printf("Wrote: %6.3f MB in %6.3f seconds\n", wroteMB, b.writeDuration)
+	log.Printf("%s - Wrote: %6.3f MB in %6.3f seconds\n", b.dirPath, wroteMB, b.writeDuration)
 	writeSpeed := wroteMB / b.writeDuration
-	log.Printf("Write Speed is: %6.3f MB/s\n", writeSpeed)
+	log.Printf("%s - Write Speed is: %6.3f MB/s\n", b.dirPath, writeSpeed)
 }
 
 func main() {
@@ -142,9 +144,9 @@ func main() {
 
 	var benchArr []*Benchmark
 	var wg sync.WaitGroup
-	for i := 1; i <= args.readers; i++ {
+	for _, dir := range args.dirPaths {
 		bench := Benchmark{
-			dirPath:      args.dirPath,
+			dirPath:      dir,
 			filesToWrite: args.filesToWrite,
 			fileSizeMB:   args.fileSize,
 		}
